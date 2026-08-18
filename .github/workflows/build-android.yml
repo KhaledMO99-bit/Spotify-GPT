@@ -18,14 +18,35 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: recursive
           fetch-depth: 0
+          submodules: false
 
       - name: Set up Java 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
+
+      - name: Initialize core
+        shell: bash
+        run: |
+          set -e
+
+          git submodule sync --recursive || true
+          git submodule update --init --recursive --force || true
+
+          if [ ! -d "core" ]; then
+            echo "core not found. Cloning core..."
+            git clone https://github.com/maxrave-dev/core.git core
+          fi
+
+          if [ ! -d "core" ]; then
+            echo "ERROR: core directory still does not exist."
+            exit 1
+          fi
+
+          echo "Core directory initialized successfully."
+          ls -la core | head -30
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
@@ -62,17 +83,6 @@ jobs:
           fi
 
           echo "Resource cleanup completed."
-
-      - name: Verify core submodule
-        run: |
-          echo "Checking core directory..."
-          if [ ! -d "core" ]; then
-            echo "ERROR: core directory does not exist."
-            exit 1
-          fi
-
-          echo "Core directory exists."
-          ls -la core | head -30
 
       - name: Build debug APK
         run: ./gradlew :androidApp:assembleDebug --stacktrace
