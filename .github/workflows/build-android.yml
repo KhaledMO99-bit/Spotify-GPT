@@ -19,7 +19,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: recursive
           fetch-depth: 0
 
       - name: Set up Java 21
@@ -42,12 +41,16 @@ jobs:
       - name: Make Gradle executable
         run: chmod +x ./gradlew
 
-      - name: Initialize core submodule
+      - name: Download core
         run: |
-          git submodule sync --recursive
-          git submodule update --init --recursive
-          echo "Core submodule initialized."
-          ls -la core
+          rm -rf core
+          git clone --depth 1 https://github.com/maxrave-dev/core.git core
+          echo "Core downloaded successfully."
+          test -d core/common
+          test -d core/data
+          test -d core/domain
+          test -d core/service/spotify
+          echo "Required core modules found."
 
       - name: Build debug APK
         run: ./gradlew androidApp:assembleDebug --no-daemon --stacktrace
