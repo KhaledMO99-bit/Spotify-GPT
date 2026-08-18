@@ -1,11 +1,10 @@
-name: Build Android APK
+name: Build debug APK
 
 on:
   workflow_dispatch:
   push:
     branches:
       - main
-      - master
 
 permissions:
   contents: read
@@ -19,6 +18,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          submodules: recursive
           fetch-depth: 0
 
       - name: Set up Java 21
@@ -32,8 +32,10 @@ jobs:
 
       - name: Install Android SDK packages
         run: |
-          sdkmanager "platforms;android-36" "build-tools;37.0.0"
           yes | sdkmanager --licenses || true
+          sdkmanager "platform-tools"
+          sdkmanager "platforms;android-35"
+          sdkmanager "build-tools;35.0.0"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -41,24 +43,43 @@ jobs:
       - name: Make Gradle executable
         run: chmod +x ./gradlew
 
-      - name: Download core
+      - name: Remove duplicate Android resources
+        shell: bash
         run: |
-          rm -rf core
-          git clone --depth 1 https://github.com/maxrave-dev/core.git core
-          echo "Core downloaded successfully."
-          test -d core/common
-          test -d core/data
-          test -d core/domain
-          test -d core/service/spotify
-          echo "Required core modules found."
+          set -e
+
+          RES_DIR="androidApp/src/main/res"
+
+          if [ -d "$RES_DIR" ]; then
+            find "$RES_DIR" -type f -name "*.webp" | while read -r webp; do
+              png="${webp%.webp}.png"
+
+              if [ -f "$png" ]; then
+                echo "Removing duplicate: $webp"
+                rm -f "$webp"
+              fi
+            done
+          fi
+
+          echo "Resource cleanup completed."
+
+      - name: Verify core submodule
+        run: |
+          echo "Checking core directory..."
+          if [ ! -d "core" ]; then
+            echo "ERROR: core directory does not exist."
+            exit 1
+          fi
+
+          echo "Core directory exists."
+          ls -la core | head -30
 
       - name: Build debug APK
-        run: ./gradlew androidApp:assembleDebug --no-daemon --stacktrace
+        run: ./gradlew :androidApp:assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Spotify-AMOLED-debug-apk
+          name: Spotify-GPT-debug
           path: androidApp/build/outputs/apk/debug/*.apk
           if-no-files-found: error
-          retention-days: 7
